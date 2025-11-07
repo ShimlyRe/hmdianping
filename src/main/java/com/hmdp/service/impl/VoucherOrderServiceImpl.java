@@ -66,11 +66,18 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         private String queueName = "stream.orders";
         @Override
         public void run() {
+            // 初始化消费者组
+            try {
+                // 创建消费者组，如果组已存在则忽略错误
+                stringRedisTemplate.opsForStream().createGroup(queueName, "g1");
+            } catch (Exception e) {
+                log.warn("消费者组 g1 已存在，跳过创建");
+            }
             while (true) {
                 try {
                     //获取消息队列的订单信息
                     List<MapRecord<String, Object, Object>> list = stringRedisTemplate.opsForStream().read(
-                            Consumer.from("g1", "c1"),
+                            Consumer.from("g1","c1"),
                             StreamReadOptions.empty().count(1).block(Duration.ofSeconds(2)),
                             StreamOffset.create(queueName, ReadOffset.lastConsumed())
                     );
@@ -160,7 +167,8 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = UserHolder.getUser().getId();
         long orderId = redisIdWorker.nextId("order");
         //执行lua脚本
-        Long execute = stringRedisTemplate.execute(SECKILL_VOUCHER_SCRIPT,
+        Long execute = stringRedisTemplate.execute(
+                SECKILL_VOUCHER_SCRIPT,
                 Collections.emptyList(),
                 voucherId.toString(), userId.toString(),String.valueOf(orderId)
         );
